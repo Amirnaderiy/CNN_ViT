@@ -13,13 +13,15 @@ from tensorflow.keras import layers, models
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import EfficientNetB7
 from tensorflow.keras.applications.efficientnet import preprocess_input
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.optimizers import SGD , Adam
 from keras.callbacks import LearningRateScheduler
 import matplotlib.pyplot as plt
+import numpy as np
 import math
 
 
-original_dataset_dir = 'path/to/original_dataset_dir'
+original_dataset_dir = 'E:\Datasets\B-Mode Ultrasound'
 
 # Define the four groups based on the filename
 group0 = [filename for filename in os.listdir(original_dataset_dir) if filename.startswith('Group0')]
@@ -48,6 +50,17 @@ group1_labels = [1] * len(group1_images)
 group2_labels = [2] * len(group2_images)
 group3_labels = [3] * len(group3_images)
 
+images = group0_images + group1_images + group2_images + group3_images
+labels = group0_labels + group1_labels + group2_labels + group3_labels
+
+# Split the data into train and test sets
+train_images, test_images, train_labels, test_labels = train_test_split(images, labels, test_size=0.30, random_state=42)
+
+# Split the train set into train and validation sets
+test_images, val_images, test_labels, val_labels = train_test_split(train_images, train_labels, test_size=0.50, random_state=42)
+
+
+
 image_size = 224
 num_classes=4
 # Load the pre-trained VIT model with imagenet weights
@@ -71,9 +84,6 @@ model.add(layers.Dense(num_classes, activation='softmax'))
 
 
 
-train_dir = 'path/to/train_dir'
-validation_dir = 'path/to/validation_dir'
-test_dir = 'path/to/test_dir'
 
 # Define the batch size for training and validation
 batch_size = 32
@@ -105,19 +115,25 @@ val_datagen = ImageDataGenerator(
     preprocessing_function=preprocess_input
 )
 
-train_generator=train_datagen.flow_from_directory(
-    train_dir,
-    target_size=(224,224),
-    shuffle=True,
-    batch_size=32,
-    class_mode='categorical'
+train_generator = train_datagen.flow(
+    x=np.array(train_images),
+    y=tf.keras.utils.to_categorical(train_labels, num_classes=num_classes),
+    batch_size=batch_size,
+    shuffle=True
 )
 
-validation_generator=val_datagen.flow_from_directory(
-    validation_dir,
-    target_size=(224,224),
-    batch_size= 16 ,
-    class_mode='categorical'
+validation_generator = val_datagen.flow(
+    x=np.array(val_images),
+    y=tf.keras.utils.to_categorical(val_labels, num_classes=num_classes),
+    batch_size=batch_size,
+    shuffle=False
+)
+
+test_generator = test_datagen.flow(
+    x=np.array(test_images),
+    y=tf.keras.utils.to_categorical(test_labels, num_classes=num_classes),
+    batch_size=batch_size,
+    shuffle=False
 )
     
     
@@ -142,26 +158,31 @@ history = model.fit(train_generator,
                     validation_steps=len(validation_generator),
                     callbacks=[lr_scheduler])
 
-    
+test_loss, test_acc = model.evaluate(test_generator, steps=len(test_generator))
+
 history_dict=history.history
 accuracy_values=history_dict['accuracy']
 val_accuracy_values=history_dict['val_accuracy']
+test_accuracy_values = [test_acc] * len(accuracy_values)
 epochs=range(1,len(accuracy_values)+1)
 plt.plot (epochs,accuracy_values,'bo',label='Training Accuracy')
 plt.plot (epochs,val_accuracy_values,'r',label='Validation Accuracy')
-plt.title('Training and Validation Accuracy')
+plt.plot (epochs,test_accuracy_values,'g',label='Test Accuracy')
+plt.title('Training, Validation and Test Accuracy')
 plt.xlabel('Epochs')
 plt.ylabel('Accuracy')
 plt.legend()
-plt.show
-history_dict=history.history
+plt.show()
+
 accuracy_values=history_dict['loss']
 val_accuracy_values=history_dict['val_loss']
+test_loss_values = [test_loss] * len(accuracy_values)
 epochs=range(1,len(accuracy_values)+1)
 plt.plot (epochs,accuracy_values,'b*',label='Training Loss')
 plt.plot (epochs,val_accuracy_values,'r',label='Validation Loss')
-plt.title('Training and Validation Loss')
+plt.plot (epochs,test_loss_values,'g',label='Test Loss')
+plt.title('Training, Validation and Test Loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.legend()
-plt.show
+plt.show()
